@@ -1,0 +1,49 @@
+# Push a tag like v1.0.0 → builds the Windows installer and both Mac disk images, then publishes them as a GitHub release.
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            cmd: npx electron-builder --win nsis --publish never
+          - os: macos-latest
+            cmd: npx electron-builder --mac dmg --arm64 --x64 --publish never
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Window-tracking library for Intel Macs too (the runner is Apple Silicon)
+        if: runner.os == 'macOS'
+        run: npm install --no-save --force "@koromix/koffi-darwin-x64@$(node -p "require('koffi/package.json').version")"
+      - run: ${{ matrix.cmd }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+          if-no-files-found: error
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.exe
+            *.dmg
