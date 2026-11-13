@@ -33,6 +33,10 @@ const lang = () => resolve(S.lang, app);
 const T = () => dict[lang()];
 const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => fs.writeFile(file(), JSON.stringify(S, null, 1), () => {}), 300); };
 const alive = () => overlays.filter(o => !o.isDestroyed());
+// small diagnostics file (userData/debug.log) so window tracking can be checked on machines we can't test on
+const dbg = msg => fs.appendFile(path.join(app.getPath('userData'), 'debug.log'), `${new Date().toISOString()} ${msg}
+`, () => {});
+let pollN = 0, listError = '';
 
 function effective() {
   const e = { ...S };
@@ -105,7 +109,10 @@ function makeOverlays() {
     w.webContents.on('did-finish-load', () => {
       const b = d.bounds, a = d.workArea;
       w.setBounds(b);
-      w.webContents.send('geo', { w: b.width, h: b.height, ground: a.y + a.height - b.y, top: a.y - b.y });
+      // macOS: the Dock floats, so snow settles on the real screen edge (low, so it never buries the Dock icons);
+      // Windows: it sits on top of the taskbar
+      const mac = process.platform === 'darwin';
+      w.webContents.send('geo', { w: b.width, h: b.height, ground: mac ? b.height : a.y + a.height - b.y, top: a.y - b.y, gmax: mac ? 16 : 110, mac });
       w.webContents.send('settings', effective());
       w.lastWins = ''; // anything polled before the page loaded was lost; resend
       updateVisibility();
@@ -130,7 +137,9 @@ function poll() {
   const skip = new Set(alive().map(o => o.handle));
   const f = watch.fullscreen(skip);
   if (f !== fullId) { fullId = f; updateVisibility(); }
-  const list = watch.list(skip);
+  let list = [];
+  try { list = watch.list(skip); } catch (e) { if (e.message !== listError) dbg('window list failed: ' + (listError = e.message)); }
+  if (pollN++ % 300 === 0 && pollN < 2000) dbg(`windows: ${list.length} ${JSON.stringify(list.slice(0, 4))}`);
   for (const o of alive()) {
     if (!o.shown) continue;
     const b = o.display.bounds;
@@ -195,6 +204,8 @@ app.whenReady().then(() => {
   app.dock?.hide();
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: S.launchAtLogin }); // keep the entry pointing at the installed exe
   else app.setLoginItemSettings = () => {}; // dev runs (npm start) never register bare electron.exe at login
+  fs.writeFile(path.join(app.getPath('userData'), 'debug.log'), '', () =>
+    dbg(`v${app.getVersion()} ${process.platform} ${process.arch} tracking=${watch.error || 'ok'} displays=${JSON.stringify(screen.getAllDisplays().map(d => [d.bounds, d.workArea]))}`));
   makeTray();
   makeOverlays();
   let t;

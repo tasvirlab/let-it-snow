@@ -10,9 +10,7 @@
 <p align="center">
   <a href="https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-Setup.exe"><b>⬇ Windows</b></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-arm64.dmg"><b>⬇ Mac (Apple M1/M2/M3/M4)</b></a>
-  &nbsp;·&nbsp;
-  <a href="https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-x64.dmg"><b>⬇ Mac (Intel)</b></a>
+  <a href="#install-on-mac"><b>⬇ Mac (Apple M &amp; Intel)</b></a>
   <br>
   <sub>Windows 10 / 11 · macOS 12 or later · free</sub>
 </p>
@@ -41,13 +39,22 @@
 To remove it: **Settings → Apps → Let It Snow → Uninstall**.
 
 ### Install on Mac
-1. Find out which Mac you have: **Apple menu  → About This Mac**. If *Chip* says **Apple M…**, download **[the Apple version](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-arm64.dmg)**. If it says **Intel**, download **[the Intel version](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-x64.dmg)**.
-2. Open the downloaded file and drag **Let It Snow** into the **Applications** folder.
-3. Open it from Applications. The first time, macOS says it *can't check the app* — click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to "Let It Snow", and confirm. You only do this once.
-4. If macOS says the app *"is damaged"*, open **Terminal** and run this once, then open the app again:
+**Easiest — one line (recommended).** Open **Terminal** (press ⌘ Space, type *Terminal*, press Enter), paste this line and press Enter:
+```
+curl -fsSL https://raw.githubusercontent.com/tasvirlab/let-it-snow/main/install-mac.sh | sh
+```
+It picks the right version for your Mac (Apple M or Intel), installs it into Applications and starts it — no security warnings.
+
+<details><summary>Or install by hand from the .dmg</summary>
+
+1. **Apple menu  → About This Mac**: if *Chip* says **Apple M…**, download [the Apple version](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-arm64.dmg); if **Intel**, download [the Intel version](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-x64.dmg).
+2. Open the file and drag **Let It Snow** into **Applications**.
+3. Because the app isn't notarized by Apple, macOS will say it *"is damaged"*. Open **Terminal** and run this once, then open the app:
    ```
    xattr -cr "/Applications/Let It Snow.app"
    ```
+</details>
+
 The app lives in the menu bar at the top of the screen. To remove it, drag it from Applications to the Trash.
 
 ---
@@ -70,13 +77,22 @@ The app lives in the menu bar at the top of the screen. To remove it, drag it fr
 O'chirish: **Sozlamalar → Ilovalar → Let It Snow → Uninstall**.
 
 ### Mac'ga o'rnatish
-1. Mac'ingiz qaysi ekanini bilib oling: **Apple menyusi  → About This Mac (Bu Mac haqida)**. *Chip* qatorida **Apple M…** yozilgan bo'lsa — **[Apple versiyasini](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-arm64.dmg)**, **Intel** yozilgan bo'lsa — **[Intel versiyasini](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-x64.dmg)** yuklab oling.
-2. Yuklangan faylni oching va **Let It Snow** ni **Applications** papkasiga sudrab tashlang.
-3. Applications'dan oching. Birinchi marta macOS *dasturni tekshira olmadim* deydi — **Done** ni bosing, keyin **System Settings → Privacy & Security** ga kiring, pastga tushib "Let It Snow" yonidagi **Open Anyway** ni bosing va tasdiqlang. Bu faqat bir marta qilinadi.
-4. Agar macOS dastur *"is damaged" (shikastlangan)* desa, **Terminal** ni ochib bir marta shu buyruqni bajaring, keyin dasturni qayta oching:
+**Eng oson yo'l — bitta qator (tavsiya etiladi).** **Terminal** ni oching (⌘ Space bosing, *Terminal* deb yozing, Enter), shu qatorni qo'ying va Enter bosing:
+```
+curl -fsSL https://raw.githubusercontent.com/tasvirlab/let-it-snow/main/install-mac.sh | sh
+```
+U Mac'ingizga mos versiyani (Apple M yoki Intel) o'zi tanlaydi, Applications papkasiga o'rnatadi va ishga tushiradi — hech qanday ogohlantirishsiz.
+
+<details><summary>Yoki .dmg fayldan qo'lda o'rnatish</summary>
+
+1. **Apple menyusi  → About This Mac**: *Chip* qatorida **Apple M…** bo'lsa — [Apple versiyasini](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-arm64.dmg), **Intel** bo'lsa — [Intel versiyasini](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-x64.dmg) yuklab oling.
+2. Faylni oching va **Let It Snow** ni **Applications** papkasiga sudrab tashlang.
+3. Dastur Apple tomonidan notarizatsiya qilinmagani uchun macOS uni *"is damaged" (shikastlangan)* deydi. **Terminal** ni ochib bir marta shu buyruqni bajaring, keyin dasturni oching:
    ```
    xattr -cr "/Applications/Let It Snow.app"
    ```
+</details>
+
 Dastur ekran tepasidagi menyu qatorida turadi. O'chirish uchun uni Applications'dan Savatga (Trash) tashlang.
 
 ---
@@ -99,13 +115,22 @@ Dastur ekran tepasidagi menyu qatorida turadi. O'chirish uchun uni Applications'
 Удалить: **Параметры → Приложения → Let It Snow → Удалить**.
 
 ### Установка на Mac
-1. Узнайте, какой у вас Mac: **меню Apple  → Об этом Mac**. Если в строке *Чип* написано **Apple M…** — скачайте **[версию для Apple](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-arm64.dmg)**, если **Intel** — **[версию для Intel](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-x64.dmg)**.
-2. Откройте скачанный файл и перетащите **Let It Snow** в папку **Программы (Applications)**.
-3. Запустите из «Программ». В первый раз macOS скажет, что *не может проверить приложение* — нажмите **Готово**, затем откройте **Системные настройки → Конфиденциальность и безопасность**, прокрутите вниз и нажмите **Всё равно открыть** рядом с «Let It Snow», подтвердите. Это нужно сделать один раз.
-4. Если macOS пишет, что приложение *«повреждено»*, откройте **Терминал**, выполните один раз эту команду и снова запустите приложение:
+**Проще всего — одна строка (рекомендуется).** Откройте **Терминал** (нажмите ⌘ Пробел, наберите *Терминал* или *Terminal*, Enter), вставьте эту строку и нажмите Enter:
+```
+curl -fsSL https://raw.githubusercontent.com/tasvirlab/let-it-snow/main/install-mac.sh | sh
+```
+Скрипт сам выберет версию для вашего Mac (Apple M или Intel), установит её в «Программы» и запустит — без предупреждений безопасности.
+
+<details><summary>Или вручную из .dmg</summary>
+
+1. **Меню Apple  → Об этом Mac**: если в строке *Чип* написано **Apple M…** — скачайте [версию для Apple](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-arm64.dmg), если **Intel** — [версию для Intel](https://github.com/tasvirlab/let-it-snow/releases/latest/download/LetItSnow-mac-x64.dmg).
+2. Откройте файл и перетащите **Let It Snow** в **Программы (Applications)**.
+3. Приложение не заверено Apple, поэтому macOS скажет, что оно *«повреждено»*. Откройте **Терминал**, выполните один раз эту команду и запустите приложение:
    ```
    xattr -cr "/Applications/Let It Snow.app"
    ```
+</details>
+
 Приложение живёт в строке меню вверху экрана. Чтобы удалить, перетащите его из «Программ» в Корзину.
 
 ---

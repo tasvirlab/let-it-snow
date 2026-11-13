@@ -7,6 +7,7 @@ try {
   if (process.platform === 'win32') impl = win();
   else if (process.platform === 'darwin') impl = mac();
 } catch (e) {
+  impl.error = e.message;
   console.error('window tracking off:', e.message);
 }
 module.exports = impl;

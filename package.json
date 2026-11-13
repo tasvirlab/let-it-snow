@@ -1,7 +1,7 @@
 {
   "name": "let-it-snow",
   "productName": "Let It Snow",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Snow, a garland, Santa and snowmen on your desktop",
   "main": "main.js",
   "scripts": {

@@ -3,7 +3,8 @@
 const api = window.oppoq;
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
-const BIN = 3, TAU = Math.PI * 2, WMAX = 18, GMAX = 110;
+const BIN = 3, TAU = Math.PI * 2, WMAX = 18;
+let GMAX = 110, EDGE_ONLY = false; // ground pile limit; lower on macOS where the ground is the screen edge under the Dock
 const FPS = 30; // ponytail: 30fps keeps the GPU cost of two full-screen transparent windows ~40% of one core; 60 doubles it
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -79,7 +80,7 @@ const BULBS = COLORS.map(c => sprite(16, g => { // cap + glass + glint, pre-rend
 
 /* ---------------- IPC ---------------- */
 api.on('geo', g => {
-  W = g.w; H = g.h; GROUND = g.ground; TOP = g.top; DPR = devicePixelRatio || 1;
+  W = g.w; H = g.h; GROUND = g.ground; TOP = g.top; GMAX = g.gmax; EDGE_ONLY = g.mac; DPR = devicePixelRatio || 1;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   const old = G; G = new Float32Array(Math.ceil(W / BIN)); G.set(old.subarray(0, Math.min(old.length, G.length)));
@@ -494,7 +495,7 @@ function startExc() { const d = Math.random() < .5 ? 1 : -1; exc = { dir: d, x: 
 function updExc(dt) {
   if (!exc) {
     excCool -= dt;
-    if (S.excavator && S.ground && excCool < 0) { excCool = 3; let top = 0; for (const v of G) if (v > top) top = v; if (avgG() > 18 || top > 75) startExc(); }
+    if (S.excavator && S.ground && excCool < 0) { excCool = 3; let top = 0; for (const v of G) if (v > top) top = v; if (avgG() > GMAX * .17 || top > GMAX * .7) startExc(); }
     return;
   }
   const e = exc;
@@ -607,7 +608,9 @@ function poof(s) {
 }
 function freeX() {
   for (let k = 0; k < 30; k++) {
-    const x = rand(90, W - 90);
+    let x = rand(90, W - 90);
+    // macOS: keep snowmen in the outer fifths, clear of the centred Dock
+    if (EDGE_ONLY) x = Math.random() < .5 ? rand(90, W * .2) : rand(W * .8, W - 90);
     if (stacks.every(s => Math.abs(s.x - x) > 110) && !(exc && Math.abs(exc.x - x) < 200)) return x;
   }
   return null;
@@ -667,7 +670,7 @@ function updPointer(dt) {
 function updStacks(dt) {
   if ((ballT -= dt) < 0) { // a little snowball forms by itself now and then
     ballT = rand(30, 70);
-    if (S.ground && stacks.filter(s => !isMan(s)).length < 2 && avgG() > 10) { const x = freeX(); if (x != null) addStack(mkStack(x, [rand(7, 10)])); }
+    if (S.ground && stacks.filter(s => !isMan(s)).length < 2 && avgG() > GMAX * .09) { const x = freeX(); if (x != null) addStack(mkStack(x, [rand(7, 10)])); }
   }
   for (const s of stacks) {
     if (s === dragStack) s.x = clamp(mx + dragOff, 20, W - 20);
