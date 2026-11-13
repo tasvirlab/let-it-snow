@@ -21,6 +21,9 @@ const PRESETS = [
 const SNOW = { 71: 35, 73: 60, 75: 90, 77: 25, 85: 50, 86: 85 };
 
 const MAC = process.platform === 'darwin';
+// macOS corner radii, measured on screen: Liquid Glass (macOS 26+) windows ≈20 pt, Dock bar ≈22 pt; older macOS ≈10 / 14
+const GLASS = MAC && +require('os').release().split('.')[0] >= 25;
+const WIN_CORNER = MAC ? (GLASS ? 20 : 10) : 0, DOCK_CORNER = GLASS ? 22 : 14;
 let S, live = null, dockRect = null, tray = null, settingsWin = null, weatherTimer = null, saveTimer = null, fullId = null;
 const overlays = [];
 const file = () => path.join(app.getPath('userData'), 'settings.json');
@@ -114,7 +117,7 @@ function makeOverlays() {
       if (MAC) w.org = w.getBounds(); // where the window really is: everything sent to the page is relative to this
       if (w.org.y !== b.y || w.org.x !== b.x) dbg(`overlay is at ${JSON.stringify(w.org)}, display at ${JSON.stringify(b)}`);
       // Windows: snow sits on top of the taskbar, full width. macOS: only on top of the Dock, along its length (see sendGround)
-      w.webContents.send('geo', { w: b.width, h: b.height, top: a.y - w.org.y, gmax: MAC ? 30 : 110, mac: MAC });
+      w.webContents.send('geo', { w: b.width, h: b.height, top: a.y - w.org.y, gmax: MAC ? 30 : 110, mac: MAC, wcorner: WIN_CORNER });
       w.lastGround = ''; sendGround(w);
       w.webContents.send('settings', effective());
       w.lastWins = ''; // anything polled before the page loaded was lost; resend
@@ -164,7 +167,8 @@ function groundFor(o) {
   if (!r || r.none) return null; // Dock auto-hidden, hidden or on the left/right side: flakes just fall past the bottom
   const cx = r.x + r.w / 2, cy = r.y + r.h / 2; // the Dock lives on one display only
   if (cx < b.x || cx >= b.x + b.width || cy < b.y || cy >= b.y + b.height) return null;
-  return { x0: r.x - g.x, x1: r.x + r.w - g.x, y: r.y - g.y };
+  const c = Math.min(DOCK_CORNER, r.w / 4); // snow only on the flat top, up to where the rounded ends start
+  return { x0: r.x + c - g.x, x1: r.x + r.w - c - g.x, y: r.y - g.y };
 }
 function sendGround(o) {
   const g = groundFor(o), key = JSON.stringify(g);

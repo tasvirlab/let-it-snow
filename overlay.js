@@ -4,7 +4,7 @@ const api = window.oppoq;
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const BIN = 3, TAU = Math.PI * 2, WMAX = 18;
-let GMAX = 110, MAC = false; // ground pile limit; lower on macOS where the ground is the top of the Dock
+let GMAX = 110, MAC = false, WCI = 0; // WCI: macOS window corner radius — drifts stop where the rounded corner starts; // ground pile limit; lower on macOS where the ground is the top of the Dock
 const FPS = 30; // ponytail: 30fps keeps the GPU cost of two full-screen transparent windows ~40% of one core; 60 doubles it
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -84,7 +84,7 @@ const BULBS = COLORS.map(c => sprite(16, g => { // cap + glass + glint, pre-rend
 
 /* ---------------- IPC ---------------- */
 api.on('geo', g => {
-  W = g.w; H = g.h; TOP = g.top; GMAX = g.gmax; MAC = g.mac; DPR = devicePixelRatio || 1;
+  W = g.w; H = g.h; TOP = g.top; GMAX = g.gmax; MAC = g.mac; WCI = g.wcorner || 0; DPR = devicePixelRatio || 1;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   layoutGarland();
@@ -136,14 +136,15 @@ function onWins(list) {
   const seen = new Set(); order = [];
   list.forEach((r, z) => {
     seen.add(r.id);
-    const n = Math.max(1, Math.ceil(r.w / BIN));
+    const ci = Math.min(WCI, r.w / 4), sx = r.x + ci, sw = r.w - 2 * ci; // snow span: the flat part of the top edge
+    const n = Math.max(1, Math.ceil(sw / BIN));
     let o = surf.get(r.id);
-    if (!o) { o = { id: r.id, x: r.x, y: r.y, w: r.w, h: r.h, d: new Float32Array(n), ice: mkIce(r.id), spill: 0 }; surf.set(r.id, o); }
+    if (!o) { o = { id: r.id, x: r.x, y: r.y, w: r.w, h: r.h, sx, sw, d: new Float32Array(n), ice: mkIce(r.id), spill: 0 }; surf.set(r.id, o); }
     else {
       const sp = Math.hypot(r.x - o.x, r.y - o.y);
       if (sp > 10) shake(o, Math.min(1, (sp - 10) / 50)); // a gentle drag carries the snow, a shake throws it off
       if (o.d.length !== n) o.d = resample(o.d, n);
-      Object.assign(o, { x: r.x, y: r.y, w: r.w, h: r.h });
+      Object.assign(o, { x: r.x, y: r.y, w: r.w, h: r.h, sx, sw });
     }
     o.z = z; order.push(o);
   });
@@ -153,10 +154,10 @@ function shake(o, frac) {
   let acc = 0;
   for (let i = 0; i < o.d.length; i++) {
     const a = o.d[i] * frac; o.d[i] -= a; acc += a;
-    if (acc > 30 || (i === o.d.length - 1 && acc > 1)) { clump(o.x + i * BIN, o.y - 3, acc, rand(-30, 30)); acc = 0; }
+    if (acc > 30 || (i === o.d.length - 1 && acc > 1)) { clump(o.sx + i * BIN, o.y - 3, acc, rand(-30, 30)); acc = 0; }
   }
   if (frac > .3) for (const c of o.ice) if (c.len > 2) {
-    add({ k: 'i', x: o.x + c.f * o.w, y: o.y, vx: rand(-10, 10), vy: 0, len: c.len, w: c.w, rot: 0, vr: rand(-3, 3), life: 0, max: 4 });
+    add({ k: 'i', x: o.sx + c.f * o.sw, y: o.y, vx: rand(-10, 10), vy: 0, len: c.len, w: c.w, rot: 0, vr: rand(-3, 3), life: 0, max: 4 });
     c.len = 0;
   }
 }
@@ -168,8 +169,8 @@ function covered(x, y, z) {
 // where does something falling from (x,py) to (x,y) land? → [heights, bin, max]
 function hit(x, py, y) {
   if (S.windows) for (const o of order) {
-    if (o.y < 6 || x < o.x || x >= o.x + o.w) continue;
-    const i = ((x - o.x) / BIN) | 0, top = o.y - o.d[i];
+    if (o.y < 6 || x < o.sx || x >= o.sx + o.sw) continue;
+    const i = Math.min(o.d.length - 1, ((x - o.sx) / BIN) | 0), top = o.y - o.d[i];
     if (py <= top && y >= top && !covered(x, top - 1, o.z)) return [o.d, i, WMAX];
   }
   if (S.ground && x >= 0 && x < W) { const i = gIdx(x); if (i >= 0 && y >= GROUND - G[i]) return [G, i, GMAX]; }
@@ -204,13 +205,13 @@ function updIce(o, dt) {
     const dep = o.d[Math.min(o.d.length - 1, (c.f * o.d.length) | 0)];
     if (S.icicles && dep > 5) c.len = Math.min(c.max, c.len + dt * .2);
     else if (dep < 1.5 || !S.icicles) c.len = Math.max(0, c.len - dt * .4);
-    if (c.len > c.max * .7 && (c.drip -= dt) < 0) { c.drip = rand(5, 18); add({ k: 'd', x: o.x + c.f * o.w, y: o.y + c.len, vx: 0, vy: 0, life: 0, max: 3 }); }
+    if (c.len > c.max * .7 && (c.drip -= dt) < 0) { c.drip = rand(5, 18); add({ k: 'd', x: o.sx + c.f * o.sw, y: o.y + c.len, vx: 0, vy: 0, life: 0, max: 3 }); }
   }
 }
 function drawIce(o) {
   for (const c of o.ice) {
     if (c.len < .8) continue;
-    const x = o.x + c.f * o.w, y = o.y, L = c.len, w = c.w * Math.min(1, L / 4 + .3);
+    const x = o.sx + c.f * o.sw, y = o.y, L = c.len, w = c.w * Math.min(1, L / 4 + .3);
     ctx.beginPath(); ctx.moveTo(x - w / 2, y);
     ctx.quadraticCurveTo(x - w * .2, y + L * .55, x, y + L); ctx.quadraticCurveTo(x + w * .15, y + L * .5, x + w / 2, y); ctx.closePath();
     ctx.fillStyle = 'rgba(228,240,255,.88)'; ctx.fill();
@@ -282,7 +283,7 @@ function updSurfaces(dt) {
     const d = o.d;
     relax(d, 1);
     if (melt) for (let i = 0; i < d.length; i++) d[i] = Math.max(0, d[i] - melt);
-    for (const [i, ex] of [[0, o.x - 3], [d.length - 1, o.x + o.w + 3]]) {
+    for (const [i, ex] of [[0, o.sx - 3], [d.length - 1, o.sx + o.sw + 3]]) {
       if (d[i] <= 2.5) continue;
       o.spill += d[i] - 2.5; d[i] = 2.5; // snow slips over the window's edge
       if (o.spill > 8) { clump(ex, o.y - 3, o.spill, (i ? 1 : -1) * rand(10, 30)); o.spill = 0; }
@@ -318,7 +319,7 @@ function brushDrift(d, x0, base, z) {
 }
 const powder = (x, y, vx, vy, nod) => add({ k: 'p', x, y, vx: vx + rand(-30, 30), vy, r: rand(.8, 1.7), life: 0, max: rand(.6, 1.2), nod });
 function clearAll() {
-  for (const [d, x0, base] of [[G, GX0, GROUND], ...order.map(o => [o.d, o.x, o.y])]) {
+  for (const [d, x0, base] of [[G, GX0, GROUND], ...order.map(o => [o.d, o.sx, o.y])]) {
     for (let i = 0; i < d.length; i += 3) if (d[i] > 2) powder(x0 + i * BIN, base - d[i], 0, -rand(40, 140), true);
     d.fill(0);
   }
@@ -330,7 +331,7 @@ function updSparks(dt) {
   if (Math.random() < dt * 5) {
     const pool = HAS_G ? [null, null, ...order] : order;
     const o = pool[(Math.random() * pool.length) | 0], d = o ? o.d : G, i = (Math.random() * d.length) | 0;
-    if (pool.length && d[i] > 3 && (!o || (o.y > 4 && !covered(o.x + i * BIN, o.y - d[i] - 1, o.z)))) sparks.push({ o, i, life: 0, max: rand(.5, 1.3), s: rand(1.8, 3.2), c: ['#8fc2ff', '#ffe08a', '#c4b5ff'][(Math.random() * 3) | 0] });
+    if (pool.length && d[i] > 3 && (!o || (o.y > 4 && !covered(o.sx + i * BIN, o.y - d[i] - 1, o.z)))) sparks.push({ o, i, life: 0, max: rand(.5, 1.3), s: rand(1.8, 3.2), c: ['#8fc2ff', '#ffe08a', '#c4b5ff'][(Math.random() * 3) | 0] });
   }
   for (let k = sparks.length - 1; k >= 0; k--) if ((sparks[k].life += dt) > sparks[k].max) sparks.splice(k, 1);
 }
@@ -339,7 +340,7 @@ function drawSparks() {
   for (const p of sparks) {
     if (p.o && surf.get(p.o.id) !== p.o) continue;
     if (!p.o && !HAS_G) continue;
-    const d = p.o ? p.o.d : G, x = (p.o ? p.o.x : GX0) + p.i * BIN, y = (p.o ? p.o.y : GROUND) - (d[p.i] ?? 0) + 1.8;
+    const d = p.o ? p.o.d : G, x = (p.o ? p.o.sx : GX0) + p.i * BIN, y = (p.o ? p.o.y : GROUND) - (d[p.i] ?? 0) + 1.8;
     const a = Math.sin(Math.PI * p.life / p.max), L = p.s * a;
     ctx.globalAlpha = a; ctx.strokeStyle = p.c;
     ctx.beginPath(); ctx.moveTo(x - L, y); ctx.lineTo(x + L, y); ctx.moveTo(x, y - L); ctx.lineTo(x, y + L); ctx.stroke();
@@ -831,7 +832,7 @@ function frame(now) {
   updExc(dt); updSleigh(dt); updParts(dt); updSparks(dt); updGarland(dt);
   if (!capture && Math.hypot(mvx, mvy) > 25) {
     if (S.ground && HAS_G) brushDrift(G, GX0, GROUND, -1);
-    for (const o of order) brushDrift(o.d, o.x, o.y, o.z);
+    for (const o of order) brushDrift(o.d, o.sx, o.y, o.z);
   }
   draw();
 }
@@ -840,7 +841,7 @@ function draw() {
   for (let k = order.length - 1; k >= 0; k--) { // back to front; each window hides the drifts behind it
     const o = order[k];
     ctx.clearRect(o.x, o.y, o.w, o.h);
-    if (o.y > 4) { drawDrift(o.d, o.x, o.y); drawIce(o); }
+    if (o.y > 4) { drawDrift(o.d, o.sx, o.y); drawIce(o); }
   }
   if (sleigh) drawSleigh();
   if (S.snowman) for (const s of stacks) drawStack(s);
