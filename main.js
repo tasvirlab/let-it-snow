@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, systemPreferences } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, systemPreferences } = require('electron');
 const path = require('path'), fs = require('fs');
 const { dict, resolve } = require('./i18n');
 
@@ -10,7 +10,7 @@ const DEFAULTS = {
   intensity: 55, wind: 15, gusts: true, size: 50, opacity: 90,
   ground: true, windows: true, melt: false, icicles: true,
   garland: true, sleigh: true, excavator: true, snowman: true,
-  hideInCapture: false, launchAtLogin: false, seen: false, lang: 'auto', axAsked: false,
+  hideInCapture: false, launchAtLogin: false, seen: false, lang: 'auto', axAsked: false, axNo: false,
 };
 const PRESETS = [
   { id: 'calm', v: { intensity: 22, wind: 0, gusts: false, size: 75 } },
@@ -44,7 +44,7 @@ function effective() {
   if (S.weatherMode === 'real' && live?.intensity != null) { e.intensity = live.intensity; e.wind = live.wind; }
   return e;
 }
-const state = () => ({ settings: S, live, presets: PRESETS, t: T(), lang: lang() });
+const state = () => ({ settings: S, live, presets: PRESETS, t: T(), lang: lang(), ax: MAC ? { need: !axTrusted() } : null });
 function push() {
   const e = effective();
   for (const o of alive()) o.webContents.send('settings', e);
@@ -178,16 +178,21 @@ async function refreshDock() {
   try { dockRect = await require('./dock').get(); } catch (e) { dockRect = null; dbg('dock: ' + e.message); }
   dockBusy = false;
   const msg = `dock: ${JSON.stringify(dockRect)} ax=${require('./dock').axStatus() || 'ok'}`;
-  if (msg !== dockLog) dbg(dockLog = msg);
+  if (msg !== dockLog) { dbg(dockLog = msg); settingsWin?.webContents.send('state', state()); } // e.g. permission just granted
   for (const o of alive()) if (!o.webContents.isLoading()) sendGround(o);
 }
-// The exact Dock size needs the Accessibility permission. Ask once, nicely; without it we estimate.
-async function askAccessibility() {
-  if (!MAC || S.axAsked || systemPreferences.isTrustedAccessibilityClient(false)) return;
+// The exact Dock size needs the Accessibility permission. On first start the settings window opens with a short
+// explanation and an Allow button (a banner, not a message box: a free-standing macOS alert is app-modal and freezes poll()).
+const axTrusted = () => MAC && systemPreferences.isTrustedAccessibilityClient(false);
+function askAccessibility() {
+  if (!MAC || S.axAsked || S.axNo || axTrusted()) return;
   set({ axAsked: true });
-  const t = T(), r = await dialog.showMessageBox({ type: 'info', message: t.axTitle, detail: t.axText, buttons: [t.axAllow, t.axLater], defaultId: 0, cancelId: 1 });
-  if (r.response === 0) systemPreferences.isTrustedAccessibilityClient(true); // opens the system prompt + adds us to the list
+  openSettings();
 }
+ipcMain.on('ax', (_e, yes) => {
+  if (yes) systemPreferences.isTrustedAccessibilityClient(true); // system prompt → System Settings, adds us to the list
+  else set({ axNo: true });
+});
 
 /* ---------- tray + settings ---------- */
 function cmd(c) {
@@ -249,7 +254,7 @@ app.whenReady().then(() => {
   const rebuild = () => { clearTimeout(t); t = setTimeout(makeOverlays, 600); };
   for (const ev of ['display-added', 'display-removed', 'display-metrics-changed']) screen.on(ev, rebuild);
   setInterval(poll, 33);
-  if (MAC) { refreshDock(); setInterval(refreshDock, 2500); setTimeout(askAccessibility, 4000); }
+  if (MAC) { refreshDock(); setInterval(refreshDock, 2500); setTimeout(askAccessibility, 1500); }
   refreshWeather();
   if (!S.seen) { openSettings(); set({ seen: true }); }});
 app.on('second-instance', openSettings);

@@ -46,6 +46,9 @@ main::-webkit-scrollbar { width: 8px; } main::-webkit-scrollbar-thumb { backgrou
 @keyframes fall { to { transform: translate(var(--dx), 130px); opacity: 0; } }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; backdrop-filter: blur(8px); }
+.ax p { color: var(--mut); white-space: pre-line; margin-bottom: 10px; }
+.axb { display: flex; gap: 8px; justify-content: flex-end; }
+.axb .pri { background: var(--acc); box-shadow: 0 2px 10px rgba(111,125,255,.45); }
 .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--acc2); font-weight: 600; margin-bottom: 10px; display: flex; gap: 6px; align-items: center; }
 
 .seg { display: flex; background: rgba(0,0,0,.22); border-radius: 10px; padding: 3px; margin-bottom: 12px; }
@@ -116,6 +119,12 @@ input[type=range]:disabled { opacity: .45; }
       <p id="heroSub"></p>
     </div>
     <label class="sw big"><input type="checkbox" id="run"><i></i></label>
+  </section>
+
+  <section class="card ax" id="ax" hidden>
+    <h2>❄ <span data-t="axTitle"></span></h2>
+    <p data-t="axText"></p>
+    <div class="axb"><button id="axNo" data-t="axLater"></button><button id="axYes" class="pri" data-t="axAllow"></button></div>
   </section>
 
   <section class="card">
@@ -198,7 +207,7 @@ function countdown(lang) {
   return '· ' + t.until.replace('{n}', n).replace('{d}', d);
 }
 
-function render({ settings: S, live, presets: P, t: T, lang }) {
+function render({ settings: S, live, presets: P, t: T, lang, ax }) {
   t = T;
   document.documentElement.lang = lang;
   document.title = t.app;
@@ -208,6 +217,7 @@ function render({ settings: S, live, presets: P, t: T, lang }) {
   $$('[data-lang]').forEach(b => b.classList.toggle('on', b.dataset.lang === (S.lang || 'auto')));
   const real = S.weatherMode === 'real';
   $('#run').checked = !S.paused;
+  $('#ax').hidden = !(ax?.need && !S.axNo); // macOS: ask for the Accessibility permission (exact Dock size)
   $('#heroTitle').textContent = S.paused ? t.heroOff : t.heroOn;
   $('#heroSub').textContent = S.paused ? t.subOff : t.subOn;
   $$('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === S.weatherMode));
@@ -251,6 +261,8 @@ $$('[data-lang]').forEach(b => b.onclick = () => api.send('set', { lang: b.datas
 $$('[data-cmd]').forEach(b => b.onclick = () => api.send('cmd', b.dataset.cmd));
 const findCity = () => api.send('set', { city: $('#city').value.trim() });
 $('#cityBtn').onclick = findCity;
+$('#axYes').onclick = () => api.send('ax', true);
+$('#axNo').onclick = () => api.send('ax', false);
 $('#city').onkeydown = e => { if (e.key === 'Enter') { findCity(); e.target.blur(); } };
 
 api.on('state', render);
