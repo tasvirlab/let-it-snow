@@ -3,7 +3,7 @@
 <h1 align="center">Let It Snow</h1>
 
 <p align="center">
-  Snow falls on your desktop, piles up on your windows and the taskbar, a garland glows along the top,<br>
+  Snow falls on your desktop, piles up on your windows and the taskbar (or the Dock on a Mac), a garland glows along the top,<br>
   Santa's sleigh flies by, a little excavator clears the snow, and you can build snowmen.
 </p>
 
@@ -25,9 +25,9 @@
 
 ### What it does
 - ❄️ **Snow** falls in three layers, with wind and gusts you can set yourself — or it follows the **real weather** in your city.
-- 🏔 **Snow piles up** at the bottom of the screen and on top of your windows. Shake a window and its snow slides off. **Icicles** grow and drip.
-- 🖱 **Sweep the snow** with your cursor. **Roll snowballs** and stack three into a **snowman** (right-click one to remove it).
-- 🎄 A **garland** glows along the top (it hides when a window is maximized, so it never covers your buttons), **Santa's sleigh** flies by, and an **excavator** clears the snow when too much piles up.
+- 🏔 **Snow piles up** on top of your windows and at the bottom of the screen — on Windows along the whole taskbar, on a Mac right on top of the **Dock**, along its real length (it follows the Dock as apps open and close). Shake a window and its snow slides off; close or minimize it and the snow tumbles down. **Icicles** grow and drip.
+- 🖱 **Sweep the snow** with your cursor. **Roll snowballs** and stack three into a **snowman** (right-click one to remove it). On a Mac they stand on the Dock — carry a ball off the Dock and it falls away.
+- 🎄 A **garland** glows along the top (it hides when a window is maximized, so it never covers your buttons), **Santa's sleigh** flies by, and an **excavator** clears the snow when too much piles up (on a Mac it drives along the top of the Dock, from one end to the other).
 - 🙈 It never gets in the way: clicks pass through the snow, and it hides by itself in full-screen games and videos.
 - 🌐 English, Uzbek and Russian.
 
@@ -57,15 +57,17 @@ It picks the right version for your Mac (Apple M or Intel), installs it into App
 
 The app lives in the menu bar at the top of the screen. To remove it, drag it from Applications to the Trash.
 
+**The Dock.** On first start the app asks for the **Accessibility** permission (*System Settings → Privacy & Security → Accessibility → Let It Snow*). It only reads where the Dock is and how long it is, so the snow sits exactly on it. If you say no, everything still works — the Dock size is estimated instead (minimized windows in the Dock aren't counted then). If the Dock is set to hide automatically or sits on the left or right, there is no snow at the bottom — flakes just fall past the screen edge. After updating the app, macOS may ask for the permission again.
+
 ---
 
 ## O'zbekcha
 
 ### Nima qiladi
 - ❄️ Ish stolingizda **qor yog'adi**: uch qavat qor parchalari, shamol va shamol to'lqinlarini o'zingiz sozlaysiz yoki qor shahringizdagi **haqiqiy ob-havoga** moslashadi.
-- 🏔 **Qor to'planadi** — ekran pastida va oynalar ustida. Oynani silkitsangiz qor sirg'alib tushadi. **Sumalaklar** o'sib, tomchilaydi.
-- 🖱 Sichqoncha bilan **qorni supurib tashlang**. **Qor to'pini dumalating** va uchtasini ustma-ust qo'yib **qordan odam** yasang (o'ng tugma bilan bossangiz yo'qoladi).
-- 🎄 Ekran tepasida **girlyanda** yonadi (oyna kattalashtirilsa, tugmalarga xalaqit bermaslik uchun yashirinadi), **Qorboboning chanasi** uchib o'tadi, qor ko'payib ketsa **ekskavator** kelib tozalaydi.
+- 🏔 **Qor to'planadi** — oynalar ustida va ekran pastida: Windows'da butun taskbar bo'ylab, Mac'da aynan **Dock** ustida, uning haqiqiy uzunligi bo'ylab (ilovalar ochilib-yopilganda Dock bilan birga o'zgaradi). Oynani silkitsangiz qor sirg'alib tushadi, yopsangiz yoki kichraytirsangiz — qulab tushadi. **Sumalaklar** o'sib, tomchilaydi.
+- 🖱 Sichqoncha bilan **qorni supurib tashlang**. **Qor to'pini dumalating** va uchtasini ustma-ust qo'yib **qordan odam** yasang (o'ng tugma bilan bossangiz yo'qoladi). Mac'da ular Dock ustida turadi — to'pni Dock'dan tashqariga olib chiqsangiz, pastga tushib ketadi.
+- 🎄 Ekran tepasida **girlyanda** yonadi (oyna kattalashtirilsa, tugmalarga xalaqit bermaslik uchun yashirinadi), **Qorboboning chanasi** uchib o'tadi, qor ko'payib ketsa **ekskavator** kelib tozalaydi (Mac'da Dock ustidan bir chetidan ikkinchi chetigacha yurib o'tadi).
 - 🙈 Hech narsaga xalaqit bermaydi: sichqoncha qor orqali bemalol bosiladi, to'liq ekranli o'yin yoki videoda qor o'zi yashirinadi.
 - 🌐 O'zbek, ingliz va rus tillarida.
 
@@ -95,15 +97,17 @@ U Mac'ingizga mos versiyani (Apple M yoki Intel) o'zi tanlaydi, Applications pap
 
 Dastur ekran tepasidagi menyu qatorida turadi. O'chirish uchun uni Applications'dan Savatga (Trash) tashlang.
 
+**Dock.** Birinchi ishga tushganda dastur **Accessibility** (Universal kirish) ruxsatini so'raydi (*System Settings → Privacy & Security → Accessibility → Let It Snow*). U faqat Dock qayerda va qancha uzunligini o'qiydi, shunda qor aynan uning ustida yotadi. Ruxsat bermasangiz ham hammasi ishlayveradi — Dock o'lchami taxminan hisoblanadi (bunda Dock'dagi kichraytirilgan oynalar hisobga olinmaydi). Dock avtomatik yashirinsa yoki chap/o'ng tomonda tursa, pastda qor to'planmaydi — parchalar ekran chetidan o'tib ketadi. Dastur yangilangandan keyin macOS ruxsatni qayta so'rashi mumkin.
+
 ---
 
 ## Русский
 
 ### Что умеет
 - ❄️ На рабочем столе **идёт снег** в три слоя, с ветром и порывами — настраиваете сами, или снег повторяет **реальную погоду** в вашем городе.
-- 🏔 **Снег копится** внизу экрана и на окнах. Встряхните окно — и снег соскользнёт. Растут и капают **сосульки**.
-- 🖱 **Сметайте снег** курсором. **Катайте снежки** и ставьте три друг на друга — получится **снеговик** (правый клик — убрать).
-- 🎄 Сверху горит **гирлянда** (прячется, когда окно развёрнуто, чтобы не закрывать кнопки), пролетают **сани Деда Мороза**, а **экскаватор** убирает снег, когда его становится много.
+- 🏔 **Снег копится** на окнах и внизу экрана: в Windows — по всей панели задач, на Mac — прямо на **Dock**, по его настоящей длине (меняется вместе с Dock, когда открываются и закрываются приложения). Встряхните окно — и снег соскользнёт, закройте или сверните — снег осыплется. Растут и капают **сосульки**.
+- 🖱 **Сметайте снег** курсором. **Катайте снежки** и ставьте три друг на друга — получится **снеговик** (правый клик — убрать). На Mac они стоят на Dock — унесите снежок за край Dock, и он упадёт.
+- 🎄 Сверху горит **гирлянда** (прячется, когда окно развёрнуто, чтобы не закрывать кнопки), пролетают **сани Деда Мороза**, а **экскаватор** убирает снег, когда его становится много (на Mac он проезжает по верху Dock от края до края).
 - 🙈 Ничему не мешает: клики проходят сквозь снег, а в полноэкранных играх и видео снег прячется сам.
 - 🌐 Русский, английский и узбекский языки.
 
@@ -133,6 +137,8 @@ curl -fsSL https://raw.githubusercontent.com/tasvirlab/let-it-snow/main/install-
 
 Приложение живёт в строке меню вверху экрана. Чтобы удалить, перетащите его из «Программ» в Корзину.
 
+**Dock.** При первом запуске приложение попросит разрешение **«Универсальный доступ»** (*Системные настройки → Конфиденциальность и безопасность → Универсальный доступ → Let It Snow*). Оно читает только положение и длину Dock, чтобы снег лежал точно на нём. Если не разрешить, всё равно работает — размер Dock вычисляется приблизительно (свёрнутые в Dock окна тогда не учитываются). Если Dock скрывается автоматически или стоит слева или справа, внизу снег не копится — снежинки просто падают за край экрана. После обновления macOS может спросить разрешение снова.
+
 ---
 
-<sub>For developers: `npm install`, then `npm start`. Pushing a tag like `v1.0.1` builds the Windows and Mac installers with GitHub Actions and publishes them as a release.</sub>
+<sub>For developers: `npm install`, then `npm start`. Pushing a tag like `v1.0.2` builds the Windows and Mac installers with GitHub Actions and publishes them as a release.</sub>

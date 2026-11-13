@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, systemPreferences } = require('electron');
 const path = require('path'), fs = require('fs');
 const { dict, resolve } = require('./i18n');
 
@@ -10,7 +10,7 @@ const DEFAULTS = {
   intensity: 55, wind: 15, gusts: true, size: 50, opacity: 90,
   ground: true, windows: true, melt: false, icicles: true,
   garland: true, sleigh: true, excavator: true, snowman: true,
-  hideInCapture: false, launchAtLogin: false, seen: false, lang: 'auto',
+  hideInCapture: false, launchAtLogin: false, seen: false, lang: 'auto', axAsked: false,
 };
 const PRESETS = [
   { id: 'calm', v: { intensity: 22, wind: 0, gusts: false, size: 75 } },
@@ -20,7 +20,8 @@ const PRESETS = [
 ];
 const SNOW = { 71: 35, 73: 60, 75: 90, 77: 25, 85: 50, 86: 85 };
 
-let S, live = null, tray = null, settingsWin = null, weatherTimer = null, saveTimer = null, fullId = null;
+const MAC = process.platform === 'darwin';
+let S, live = null, dockRect = null, tray = null, settingsWin = null, weatherTimer = null, saveTimer = null, fullId = null;
 const overlays = [];
 const file = () => path.join(app.getPath('userData'), 'settings.json');
 const load = () => {
@@ -30,7 +31,7 @@ const load = () => {
   S = { ...DEFAULTS };
 };
 const lang = () => resolve(S.lang, app);
-const T = () => dict[lang()];
+const T = () => MAC ? { ...dict[lang()], ...dict[lang()].mac } : dict[lang()]; // macOS wording where the Dock replaces the taskbar
 const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => fs.writeFile(file(), JSON.stringify(S, null, 1), () => {}), 300); };
 const alive = () => overlays.filter(o => !o.isDestroyed());
 // small diagnostics file (userData/debug.log) so window tracking can be checked on machines we can't test on
@@ -98,21 +99,23 @@ function makeOverlays() {
     const w = new BrowserWindow({
       ...d.bounds, transparent: true, frame: false, resizable: false, movable: false, focusable: false,
       skipTaskbar: true, hasShadow: false, fullscreenable: false, show: false, backgroundColor: '#00000000',
+      enableLargerThanScreen: MAC, // macOS otherwise pushes the window below the menu bar and every drift lands 1 menu-bar too low
       webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
     });
     w.setAlwaysOnTop(true, 'screen-saver');
     w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
     w.setIgnoreMouseEvents(true, { forward: true });
     w.setContentProtection(S.hideInCapture);
-    Object.assign(w, { display: d, shown: false, lastWins: '' });
+    Object.assign(w, { display: d, shown: false, lastWins: '', lastGround: '', org: d.bounds });
     w.handle = process.platform === 'win32' ? w.getNativeWindowHandle().readBigUInt64LE(0) : 0n;
     w.webContents.on('did-finish-load', () => {
       const b = d.bounds, a = d.workArea;
       w.setBounds(b);
-      // macOS: the Dock floats, so snow settles on the real screen edge (low, so it never buries the Dock icons);
-      // Windows: it sits on top of the taskbar
-      const mac = process.platform === 'darwin';
-      w.webContents.send('geo', { w: b.width, h: b.height, ground: mac ? b.height : a.y + a.height - b.y, top: a.y - b.y, gmax: mac ? 16 : 110, mac });
+      if (MAC) w.org = w.getBounds(); // where the window really is: everything sent to the page is relative to this
+      if (w.org.y !== b.y || w.org.x !== b.x) dbg(`overlay is at ${JSON.stringify(w.org)}, display at ${JSON.stringify(b)}`);
+      // Windows: snow sits on top of the taskbar, full width. macOS: only on top of the Dock, along its length (see sendGround)
+      w.webContents.send('geo', { w: b.width, h: b.height, top: a.y - w.org.y, gmax: MAC ? 30 : 110, mac: MAC });
+      w.lastGround = ''; sendGround(w);
       w.webContents.send('settings', effective());
       w.lastWins = ''; // anything polled before the page loaded was lost; resend
       updateVisibility();
@@ -146,10 +149,44 @@ function poll() {
     const wins = list
       // >8px overlap: maximized windows spill a few px onto the neighbouring monitor
       .filter(r => r.x + 8 < b.x + b.width && r.x + r.w > b.x + 8 && r.y + 8 < b.y + b.height && r.y + r.h > b.y + 8)
-      .map(r => ({ id: r.id, x: r.x - b.x, y: r.y - b.y, w: r.w, h: r.h }));
+      .map(r => ({ id: r.id, x: r.x - o.org.x, y: r.y - o.org.y, w: r.w, h: r.h }));
     const key = JSON.stringify(wins);
     if (key !== o.lastWins) { o.lastWins = key; o.webContents.send('wins', wins); }
   }
+}
+
+/* ---------- ground line: taskbar (Windows) or Dock (macOS) ---------- */
+// → { x0, x1, y } in the overlay's own coordinates, or null when there is nothing for snow to rest on
+function groundFor(o) {
+  const b = o.display.bounds, a = o.display.workArea, g = o.org;
+  if (!MAC) return { x0: 0, x1: b.width, y: a.y + a.height - g.y };
+  const r = dockRect;
+  if (!r || r.none) return null; // Dock auto-hidden, hidden or on the left/right side: flakes just fall past the bottom
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2; // the Dock lives on one display only
+  if (cx < b.x || cx >= b.x + b.width || cy < b.y || cy >= b.y + b.height) return null;
+  return { x0: r.x - g.x, x1: r.x + r.w - g.x, y: r.y - g.y };
+}
+function sendGround(o) {
+  const g = groundFor(o), key = JSON.stringify(g);
+  if (key !== o.lastGround) { o.lastGround = key; o.webContents.send('ground', g); }
+}
+// re-checked every 2.5 s: the Dock changes length as apps open/close, with its size setting, auto-hide, position
+let dockBusy = false, dockLog = '';
+async function refreshDock() {
+  if (dockBusy) return;
+  dockBusy = true;
+  try { dockRect = await require('./dock').get(); } catch (e) { dockRect = null; dbg('dock: ' + e.message); }
+  dockBusy = false;
+  const msg = `dock: ${JSON.stringify(dockRect)} ax=${require('./dock').axStatus() || 'ok'}`;
+  if (msg !== dockLog) dbg(dockLog = msg);
+  for (const o of alive()) if (!o.webContents.isLoading()) sendGround(o);
+}
+// The exact Dock size needs the Accessibility permission. Ask once, nicely; without it we estimate.
+async function askAccessibility() {
+  if (!MAC || S.axAsked || systemPreferences.isTrustedAccessibilityClient(false)) return;
+  set({ axAsked: true });
+  const t = T(), r = await dialog.showMessageBox({ type: 'info', message: t.axTitle, detail: t.axText, buttons: [t.axAllow, t.axLater], defaultId: 0, cancelId: 1 });
+  if (r.response === 0) systemPreferences.isTrustedAccessibilityClient(true); // opens the system prompt + adds us to the list
 }
 
 /* ---------- tray + settings ---------- */
@@ -212,6 +249,7 @@ app.whenReady().then(() => {
   const rebuild = () => { clearTimeout(t); t = setTimeout(makeOverlays, 600); };
   for (const ev of ['display-added', 'display-removed', 'display-metrics-changed']) screen.on(ev, rebuild);
   setInterval(poll, 33);
+  if (MAC) { refreshDock(); setInterval(refreshDock, 2500); setTimeout(askAccessibility, 4000); }
   refreshWeather();
   if (!S.seen) { openSettings(); set({ seen: true }); }});
 app.on('second-instance', openSettings);

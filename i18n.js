@@ -1,6 +1,11 @@
 // UI strings in Uzbek, English and Russian. Plain data only: the settings window receives the active table over IPC.
 const dict = {
   uz: {
+    axTitle: "Qor Dock ustida yotishi uchun ruxsat kerak",
+    axText: "Qor aynan Dock ustida, uning uzunligi bo'ylab to'planishi uchun Let It Snow Dock'ning o'lchamini bilishi kerak. Buning uchun macOS «Accessibility» (Universal kirish) ruxsatini so'raydi — dastur faqat Dock'ning joyi va o'lchamini o'qiydi, boshqa hech narsaga tegmaydi.\n\n«Ruxsat berish»ni bossangiz, Tizim sozlamalari ochiladi: u yerda Let It Snow'ni yoqing. Ruxsat bermasangiz ham ishlayveradi — Dock o'lchami taxminan hisoblanadi.",
+    axAllow: 'Ruxsat berish', axLater: 'Hozir emas',
+    mac: { groundD: "Dock ustida, uning uzunligi bo'ylab uyum hosil bo'ladi", excavatorD: "Dock ustida qor ko'payib ketsa, bir chetidan kirib, ikkinchi chetigacha surib ketadi",
+      snowmanD: "Dock ustida turadi. To'pni dumalatib, uchtasini ustma-ust qo'ying; Dock'dan tashqariga olib chiqsangiz, pastga tushib ketadi" },
     app: "Qor yog'sin", tooltip: "Let It Snow — ish stolingizda qor",
     days: { one: 'kun', other: 'kun' }, until: 'Yangi yilgacha {n} {d}', happy: 'Yangi yil muborak! 🎄',
     heroOn: "Qor yog'moqda", heroOff: "Qor to'xtatilgan",
@@ -34,6 +39,11 @@ const dict = {
       rain: "yomg'ir", showers: 'jala', other: 'bulutli' },
   },
   en: {
+    axTitle: 'Let the snow sit on your Dock',
+    axText: "To pile snow exactly on top of the Dock, along its real length, Let It Snow needs to know where the Dock is. macOS asks for the Accessibility permission for that — the app only reads the Dock's position and size, nothing else.\n\nClick Allow, and System Settings opens: switch Let It Snow on there. If you skip this, everything still works — the Dock size is estimated instead.",
+    axAllow: 'Allow', axLater: 'Not now',
+    mac: { groundD: 'Snow piles up on top of the Dock, along its length', excavatorD: 'Drives along the top of the Dock, edge to edge, when too much snow piles up',
+      snowmanD: 'They stand on the Dock. Roll a ball and stack three; carry one off the Dock and it falls away' },
     app: 'Let It Snow', tooltip: 'Let It Snow — snow on your desktop',
     days: { one: 'day', other: 'days' }, until: '{n} {d} until New Year', happy: 'Happy New Year! 🎄',
     heroOn: "It's snowing", heroOff: 'Snow is paused',
@@ -67,6 +77,11 @@ const dict = {
       rain: 'rain', showers: 'showers', other: 'cloudy' },
   },
   ru: {
+    axTitle: 'Пусть снег лежит на Dock',
+    axText: 'Чтобы снег копился точно на Dock и по всей его длине, Let It Snow нужно знать, где находится Dock. Для этого macOS попросит разрешение «Универсальный доступ» — приложение читает только положение и размер Dock, больше ничего.\n\nНажмите «Разрешить», откроются Системные настройки: включите там Let It Snow. Без разрешения всё тоже работает — размер Dock будет вычислен приблизительно.',
+    axAllow: 'Разрешить', axLater: 'Не сейчас',
+    mac: { groundD: 'Снег копится на Dock, по всей его длине', excavatorD: 'Проезжает по верху Dock от края до края, когда снега слишком много',
+      snowmanD: 'Стоят на Dock. Скатайте ком и поставьте три друг на друга; унесёте ком за Dock — он упадёт' },
     app: 'Пусть идёт снег', tooltip: 'Let It Snow — снег на рабочем столе',
     days: { one: 'день', few: 'дня', many: 'дней', other: 'дня' }, until: 'До Нового года {n} {d}', happy: 'С Новым годом! 🎄',
     heroOn: 'Идёт снег', heroOff: 'Снег на паузе',

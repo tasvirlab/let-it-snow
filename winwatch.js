@@ -72,7 +72,6 @@ function win() {
 }
 
 function mac() {
-  // ponytail: untested on real macOS hardware — if it throws, the catch above falls back to ground-only snow
   const koffi = require('koffi');
   const cg = koffi.load('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics');
   const cf = koffi.load('/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation');
@@ -86,9 +85,11 @@ function mac() {
   const Str = cf.func('void *CFStringCreateWithCString(void *alloc, const char *s, uint32 enc)');
   const Release = cf.func('void CFRelease(void *p)');
   const K = s => Str(null, s, 0x08000100);
-  const kLayer = K('kCGWindowLayer'), kBounds = K('kCGWindowBounds'), kNum = K('kCGWindowNumber'), kPid = K('kCGWindowOwnerPID');
+  const kLayer = K('kCGWindowLayer'), kBounds = K('kCGWindowBounds'), kNum = K('kCGWindowNumber'), kPid = K('kCGWindowOwnerPID'), kAlpha = K('kCGWindowAlpha');
   const v = [0], r = {};
   const num = (d, k) => { const n = Get(d, k); if (!n) return null; NumVal(n, 4 /* SInt64 */, v); return Number(v[0]); };
+  const NumF = cf.func('CFNumberGetValue', 'bool', ['void *', 'int', koffi.out(koffi.pointer('double'))]), fv = [1];
+  const alpha = d => { const n = Get(d, kAlpha); if (!n) return 1; NumF(n, 13 /* Float64 */, fv); return fv[0]; };
 
   function list() {
     const arr = CopyList(1 | 16, 0); // on-screen only, exclude desktop elements
@@ -96,7 +97,8 @@ function mac() {
     const out = [];
     for (let i = 0, n = Count(arr); i < n; i++) {
       const d = At(arr, i);
-      if (num(d, kLayer) !== 0 || num(d, kPid) === process.pid) continue;
+      // normal app windows only (layer 0), not ours, not invisible helper windows some apps keep on screen
+      if (num(d, kLayer) !== 0 || num(d, kPid) === process.pid || alpha(d) < .05) continue;
       if (!RectFromDict(Get(d, kBounds), r) || r.w < 120 || r.h < 60) continue;
       out.push({ id: String(num(d, kNum)), x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) });
     }

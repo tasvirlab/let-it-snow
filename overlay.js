@@ -4,7 +4,7 @@ const api = window.oppoq;
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const BIN = 3, TAU = Math.PI * 2, WMAX = 18;
-let GMAX = 110, EDGE_ONLY = false; // ground pile limit; lower on macOS where the ground is the screen edge under the Dock
+let GMAX = 110, MAC = false; // ground pile limit; lower on macOS where the ground is the top of the Dock
 const FPS = 30; // ponytail: 30fps keeps the GPU cost of two full-screen transparent windows ~40% of one core; 60 doubles it
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -14,7 +14,8 @@ const COLORS = ['#ff4d6d', '#ffd166', '#06d6a0', '#4cc9f0', '#f72585', '#ff9f43'
 
 let W = innerWidth, H = innerHeight, DPR = devicePixelRatio || 1, GROUND = H, TOP = 0;
 let S = null, active = false, raf = 0, last = 0, t = 0, frameN = 0, wind = 0;
-let G = new Float32Array(Math.ceil(W / BIN)); // ground drift heights
+let G = new Float32Array(Math.ceil(W / BIN)); // ground drift heights; G[i] covers x = GX0 + i * BIN
+let GX0 = 0, HAS_G = true, gSpill = 0;          // Windows: the whole taskbar width. macOS: the Dock's span; HAS_G false = no Dock
 const surf = new Map();                         // window drifts by window id
 let order = [];                                 // same, front to back
 const flakes = [], parts = [], sparks = [], stacks = [];
@@ -31,7 +32,10 @@ function ell(x, y, rx, ry, rot = 0) { ctx.beginPath(); ctx.ellipse(x, y, Math.ma
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 const add = p => { if (parts.length < 3000) parts.push(p); };
 const avgG = () => { let s = 0; for (const v of G) s += v; return s / G.length; };
-const groundTop = x => GROUND - (S.ground ? G[clamp((x / BIN) | 0, 0, G.length - 1)] * .55 : 0);
+// ground bin under x; -1 off the Dock on macOS (Windows: the taskbar spans the whole screen, clamp to its ends)
+const gIdx = x => { const i = Math.floor((x - GX0) / BIN); return !MAC ? clamp(i, 0, G.length - 1) : HAS_G && i >= 0 && i < G.length ? i : -1; };
+const groundTop = x => { const i = gIdx(x); return i < 0 ? Infinity : GROUND - (S.ground ? G[i] * .55 : 0); };
+const gEnd = () => GX0 + G.length * BIN;
 
 /* ---------------- sprites ---------------- */
 // All sprites live in one atlas canvas so the GPU can batch the hundreds of draws per frame.
@@ -80,12 +84,36 @@ const BULBS = COLORS.map(c => sprite(16, g => { // cap + glass + glint, pre-rend
 
 /* ---------------- IPC ---------------- */
 api.on('geo', g => {
-  W = g.w; H = g.h; GROUND = g.ground; TOP = g.top; GMAX = g.gmax; EDGE_ONLY = g.mac; DPR = devicePixelRatio || 1;
+  W = g.w; H = g.h; TOP = g.top; GMAX = g.gmax; MAC = g.mac; DPR = devicePixelRatio || 1;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
-  const old = G; G = new Float32Array(Math.ceil(W / BIN)); G.set(old.subarray(0, Math.min(old.length, G.length)));
   layoutGarland();
 });
+// where snow rests at the bottom: { x0, x1, y } (top of the taskbar / of the Dock) or null (macOS: Dock hidden, on the side, other display)
+api.on('ground', g => {
+  if (!g) { if (HAS_G) dropGround(); HAS_G = false; return; }
+  const n = Math.max(1, Math.ceil((g.x1 - g.x0) / BIN));
+  if (!MAC) { const old = G; G = new Float32Array(n); G.set(old.subarray(0, Math.min(old.length, n))); }
+  else if (!HAS_G) G = new Float32Array(n); // the Dock is back: start clean, its old snow already fell off
+  else if (n !== G.length || g.x0 !== GX0) {
+    // Dock got longer/shorter (apps opened or closed) or moved: stretch the drift, carry snowmen and the excavator along
+    const ox = GX0, ow = G.length * BIN, k = n * BIN / ow, mv = x => g.x0 + (x - ox) * k;
+    for (const st of stacks) if (!st.fall) st.x = mv(st.x);
+    if (exc && !exc.fall) exc.x = mv(exc.x);
+    if (n !== G.length) G = resample(G, n);
+  }
+  GX0 = g.x0; GROUND = g.y; HAS_G = true;
+});
+// the Dock went away: its snow tumbles down as clumps, like a closed window's
+function dropGround() {
+  let acc = 0;
+  for (let i = 0; i < G.length; i++) {
+    acc += G[i]; G[i] = 0;
+    if (acc > 30 || (i === G.length - 1 && acc > 1)) { clump(GX0 + i * BIN, GROUND - 3, acc, rand(-30, 30)); acc = 0; }
+  }
+  for (const st of stacks) st.fall = true;
+  if (exc) exc.fall = true;
+}
 api.on('settings', s => {
   const first = !S; S = s;
   cv.style.opacity = s.opacity / 100;
@@ -144,7 +172,7 @@ function hit(x, py, y) {
     const i = ((x - o.x) / BIN) | 0, top = o.y - o.d[i];
     if (py <= top && y >= top && !covered(x, top - 1, o.z)) return [o.d, i, WMAX];
   }
-  if (S.ground && x >= 0 && x < W) { const i = (x / BIN) | 0; if (y >= GROUND - G[i]) return [G, i, GMAX]; }
+  if (S.ground && x >= 0 && x < W) { const i = gIdx(x); if (i >= 0 && y >= GROUND - G[i]) return [G, i, GMAX]; }
   return null;
 }
 function deposit(d, i, a, max) {
@@ -245,6 +273,11 @@ function updSurfaces(dt) {
   const melt = S.melt ? dt * .03 : 0;
   relax(G, 1.4);
   if (melt) for (let i = 0; i < G.length; i++) G[i] = Math.max(0, G[i] - melt);
+  if (MAC && HAS_G) for (const [i, ex] of [[0, GX0 - 3], [G.length - 1, gEnd() + 3]]) { // snow slips off the Dock's ends
+    if (G[i] <= 4) continue;
+    gSpill += G[i] - 4; G[i] = 4;
+    if (gSpill > 8) { clump(ex, GROUND - 3, gSpill, (i ? 1 : -1) * rand(10, 30)); gSpill = 0; }
+  }
   for (const o of order) {
     const d = o.d;
     relax(d, 1);
@@ -285,7 +318,7 @@ function brushDrift(d, x0, base, z) {
 }
 const powder = (x, y, vx, vy, nod) => add({ k: 'p', x, y, vx: vx + rand(-30, 30), vy, r: rand(.8, 1.7), life: 0, max: rand(.6, 1.2), nod });
 function clearAll() {
-  for (const [d, x0, base] of [[G, 0, GROUND], ...order.map(o => [o.d, o.x, o.y])]) {
+  for (const [d, x0, base] of [[G, GX0, GROUND], ...order.map(o => [o.d, o.x, o.y])]) {
     for (let i = 0; i < d.length; i += 3) if (d[i] > 2) powder(x0 + i * BIN, base - d[i], 0, -rand(40, 140), true);
     d.fill(0);
   }
@@ -295,9 +328,9 @@ function clearAll() {
 /* ---------------- sparkles on the snow ---------------- */
 function updSparks(dt) {
   if (Math.random() < dt * 5) {
-    const pool = [null, null, ...order];
+    const pool = HAS_G ? [null, null, ...order] : order;
     const o = pool[(Math.random() * pool.length) | 0], d = o ? o.d : G, i = (Math.random() * d.length) | 0;
-    if (d[i] > 3 && (!o || (o.y > 4 && !covered(o.x + i * BIN, o.y - d[i] - 1, o.z)))) sparks.push({ o, i, life: 0, max: rand(.5, 1.3), s: rand(1.8, 3.2), c: ['#8fc2ff', '#ffe08a', '#c4b5ff'][(Math.random() * 3) | 0] });
+    if (pool.length && d[i] > 3 && (!o || (o.y > 4 && !covered(o.x + i * BIN, o.y - d[i] - 1, o.z)))) sparks.push({ o, i, life: 0, max: rand(.5, 1.3), s: rand(1.8, 3.2), c: ['#8fc2ff', '#ffe08a', '#c4b5ff'][(Math.random() * 3) | 0] });
   }
   for (let k = sparks.length - 1; k >= 0; k--) if ((sparks[k].life += dt) > sparks[k].max) sparks.splice(k, 1);
 }
@@ -305,7 +338,8 @@ function drawSparks() {
   ctx.lineWidth = .8;
   for (const p of sparks) {
     if (p.o && surf.get(p.o.id) !== p.o) continue;
-    const d = p.o ? p.o.d : G, x = (p.o ? p.o.x : 0) + p.i * BIN, y = (p.o ? p.o.y : GROUND) - (d[p.i] ?? 0) + 1.8;
+    if (!p.o && !HAS_G) continue;
+    const d = p.o ? p.o.d : G, x = (p.o ? p.o.x : GX0) + p.i * BIN, y = (p.o ? p.o.y : GROUND) - (d[p.i] ?? 0) + 1.8;
     const a = Math.sin(Math.PI * p.life / p.max), L = p.s * a;
     ctx.globalAlpha = a; ctx.strokeStyle = p.c;
     ctx.beginPath(); ctx.moveTo(x - L, y); ctx.lineTo(x + L, y); ctx.moveTo(x, y - L); ctx.lineTo(x, y + L); ctx.stroke();
@@ -491,33 +525,60 @@ function drawSleigh() {
 }
 
 /* ---------------- excavator ---------------- */
-function startExc() { const d = Math.random() < .5 ? 1 : -1; exc = { dir: d, x: d > 0 ? -120 : W + 120, y: GROUND, pile: 0, lift: 0, wheel: 0, smoke: 0, t: 0 }; }
+// Windows: drives in from one screen edge and out the other along the taskbar.
+// macOS: smaller, appears at one end of the Dock, drives along its top and fades out at the other end, tipping its pile off.
+function startExc() {
+  const d = Math.random() < .5 ? 1 : -1;
+  if (!MAC) { exc = { dir: d, sc: 1, a: 1, x: d > 0 ? -120 : W + 120, y: GROUND, pile: 0, lift: 0, wheel: 0, smoke: 0, t: 0 }; return; }
+  if (!HAS_G || G.length * BIN < 220) return;
+  const sc = G.length * BIN > 500 ? .6 : .45, x = d > 0 ? GX0 + 40 * sc : gEnd() - 40 * sc;
+  exc = { dir: d, sc, a: 0, x, y: GROUND, pile: 0, lift: 0, wheel: 0, smoke: 0, t: 0 };
+  // it rolls in onto the Dock: whatever lies under it goes into the bucket
+  const bx = x + d * 76 * sc;
+  for (let i = Math.max(0, gIdx(Math.min(GX0, bx))), i1 = gIdx(Math.max(GX0, bx)); i <= i1 && i >= 0; i++) if (G[i] > 1.2) { exc.pile += G[i] - 1.2; G[i] = 1.2; }
+}
 function updExc(dt) {
   if (!exc) {
     excCool -= dt;
-    if (S.excavator && S.ground && excCool < 0) { excCool = 3; let top = 0; for (const v of G) if (v > top) top = v; if (avgG() > GMAX * .17 || top > GMAX * .7) startExc(); }
+    if (S.excavator && S.ground && HAS_G && excCool < 0) { excCool = 3; let top = 0; for (const v of G) if (v > top) top = v; if (avgG() > GMAX * .17 || top > GMAX * .7) startExc(); }
     return;
   }
-  const e = exc;
-  e.t += dt; e.x += e.dir * 80 * dt; e.wheel += 80 * dt;
-  const bx = e.x + e.dir * 66;
-  const near = S.snowman && stacks.some(s => Math.abs(s.x - bx) < s.balls[0].r + 26);
+  const e = exc, sc = e.sc;
+  e.t += dt;
+  if (e.fall) { // the Dock vanished under it
+    e.vy = (e.vy || 0) + 900 * dt; e.y += e.vy * dt; e.x += e.dir * 40 * dt;
+    if (e.y > H + 90 * sc) { exc = null; excCool = 45; }
+    return;
+  }
+  e.x += e.dir * 80 * sc * dt; e.wheel += 80 * dt;
+  const bx = e.x + e.dir * 66 * sc;
+  const near = S.snowman && stacks.some(s => Math.abs(s.x - bx) < s.balls[0].r + 26 * sc);
   e.lift = lerp(e.lift, near ? 1 : 0, Math.min(1, dt * 5)); // lift the bucket over snowmen
-  if (e.lift < .25) {
-    const i0 = Math.max(0, Math.floor((bx - 10) / BIN)), i1 = Math.min(G.length - 1, Math.floor((bx + 10) / BIN));
+  if (e.lift < .25 && !e.out) {
+    const i0 = Math.max(0, Math.floor((bx - 10 - GX0) / BIN)), i1 = Math.min(G.length - 1, Math.floor((bx + 10 - GX0) / BIN));
     for (let i = i0; i <= i1; i++) if (G[i] > 1.2) {
       const tk = G[i] - 1.2; G[i] = 1.2; e.pile += tk;
-      if (Math.random() < tk * .06) powder(bx + e.dir * 8, GROUND - 6, e.dir * 110, -rand(40, 110), true);
+      if (Math.random() < tk * .06) powder(bx + e.dir * 8 * sc, GROUND - 6 * sc, e.dir * 110 * sc, -rand(40, 110) * sc, true);
     }
   }
-  e.y = lerp(e.y, GROUND - G[clamp((e.x / BIN) | 0, 0, G.length - 1)] * .9, Math.min(1, dt * 6));
-  if ((e.smoke -= dt) < 0) { e.smoke = rand(.25, .6); add({ k: 's', x: e.x - e.dir * 27, y: e.y - 45, vx: -e.dir * rand(5, 15), vy: rand(-30, -18), r: 2.5, life: 0, max: rand(1.2, 2) }); }
-  if (e.dir > 0 ? e.x > W + 170 : e.x < -170) { exc = null; excCool = 45; }
+  const gi = MAC ? gIdx(e.x) : clamp((e.x / BIN) | 0, 0, G.length - 1);
+  if (gi < 0) { e.fall = true; return; }
+  e.y = lerp(e.y, GROUND - G[gi] * .9, Math.min(1, dt * 6));
+  if ((e.smoke -= dt) < 0) { e.smoke = rand(.25, .6); add({ k: 's', x: e.x - e.dir * 27 * sc, y: e.y - 45 * sc, vx: -e.dir * rand(5, 15), vy: rand(-30, -18), r: 2.5 * sc, life: 0, max: rand(1.2, 2) }); }
+  if (!MAC) { if (e.dir > 0 ? e.x > W + 170 : e.x < -170) { exc = null; excCool = 45; } return; }
+  if (!e.out && (e.dir > 0 ? e.x + 36 * sc >= gEnd() : e.x - 36 * sc <= GX0)) {
+    e.out = true; // front reached the far end: tip the pile over the edge, then fade away
+    const ex = e.dir > 0 ? gEnd() + 4 : GX0 - 4;
+    for (let v = e.pile; v > 0; v -= 30) clump(ex + e.dir * rand(0, 20), GROUND - rand(4, 20) * sc, Math.min(30, v), e.dir * rand(20, 70));
+    e.pile = 0;
+  }
+  e.a = e.out ? e.a - dt * 2 : Math.min(1, e.a + dt * 2.5);
+  if (e.out && e.a <= 0) { exc = null; excCool = 45; }
 }
 function drawExc() {
   const e = exc, lift = e.lift * 38, yg = ctx.createLinearGradient(0, -60, 0, -14);
   yg.addColorStop(0, '#ffd23f'); yg.addColorStop(1, '#f5a300');
-  T(e.dir, e.x, e.y);
+  ctx.setTransform(e.dir * e.sc * DPR, 0, 0, e.sc * DPR, e.x * DPR, e.y * DPR); ctx.globalAlpha = e.a;
   const hg = ctx.createLinearGradient(16, 0, 130, 0); hg.addColorStop(0, 'rgba(255,236,170,.32)'); hg.addColorStop(1, 'rgba(255,236,170,0)');
   ctx.fillStyle = hg; ctx.beginPath(); ctx.moveTo(15, -48); ctx.lineTo(130, -62); ctx.lineTo(130, -2); ctx.closePath(); ctx.fill();
   // tracks
@@ -547,9 +608,9 @@ function drawExc() {
   // beacon
   ctx.fillStyle = '#555'; ctx.fillRect(-3, -62, 6, 2.5);
   ctx.fillStyle = '#ff8c1a'; ctx.beginPath(); ctx.arc(0, -62, 3, Math.PI, 0); ctx.fill();
-  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (.5 + .5 * Math.sin(e.t * 9)) * .85;
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (.5 + .5 * Math.sin(e.t * 9)) * .85 * e.a;
   blit(WARM, -15, -77, 30, 30);
-  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = e.a; ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = '#fff6c9'; ell(14, -48, 1.8, 1.8);
   // boom, stick, bucket
   const ex = 40, ey = -60, bxl = 64, byl = -10 - lift;
@@ -561,21 +622,21 @@ function drawExc() {
   ctx.fillStyle = '#495057'; for (const [jx, jy] of [[14, -30], [ex, ey], [bxl, byl - 6]]) ell(jx, jy, 2.4, 2.4);
   for (let k = 0; k < 4; k++) { // tiny fairy lights on the boom
     const u = (k + .5) / 4, gx = lerp(14, ex, u), gy = lerp(-30, ey, u) + 5, b = .5 + .5 * Math.sin(e.t * 5 + k * 1.7);
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = b * .9; blit(GLOWS[k], gx - 7, gy - 7, 14, 14);
-    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = COLORS[k]; ell(gx, gy, 1.5, 1.5);
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = b * .9 * e.a; blit(GLOWS[k], gx - 7, gy - 7, 14, 14);
+    ctx.globalAlpha = e.a; ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = COLORS[k]; ell(gx, gy, 1.5, 1.5);
   }
   ctx.fillStyle = '#5c636a'; ctx.strokeStyle = '#343a40'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(bxl - 7, byl - 8); ctx.quadraticCurveTo(bxl - 9, byl + 9, bxl + 3, byl + 10);
   ctx.lineTo(bxl + 12, byl + 10); ctx.lineTo(bxl + 8, byl - 4); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#343a40';
   for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(bxl + 3 + k * 3, byl + 10); ctx.lineTo(bxl + 5.5 + k * 3, byl + 12.5); ctx.lineTo(bxl + 6 + k * 3, byl + 10); ctx.fill(); }
-  R0();
+  R0(); ctx.globalAlpha = 1;
 }
 function drawPile() {
   const e = exc, hh = Math.min(46, Math.sqrt(e.pile * BIN / 1.9));
   if (hh < 2) return;
   const w = Math.max(10, hh * 2.3), base = -e.lift * 38, px = 76 + w * .45;
-  T(e.dir, e.x, e.y);
+  ctx.setTransform(e.dir * e.sc * DPR, 0, 0, e.sc * DPR, e.x * DPR, e.y * DPR); ctx.globalAlpha = e.a;
   ctx.beginPath(); ctx.moveTo(px - w / 2, base);
   for (let a = 0; a <= 10; a++) {
     const u = a / 10, ang = Math.PI * (1 - u), bump = 1 + Math.sin(u * 17 + 1) * .06;
@@ -584,7 +645,7 @@ function drawPile() {
   ctx.closePath();
   const g = ctx.createLinearGradient(0, base - hh, 0, base); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#d3def3');
   ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = 'rgba(150,175,220,.55)'; ctx.lineWidth = .7; ctx.stroke();
-  R0();
+  R0(); ctx.globalAlpha = 1;
 }
 
 /* ---------------- snowballs & snowmen ---------------- */
@@ -607,10 +668,11 @@ function poof(s) {
   if (dragStack === s) dragStack = null;
 }
 function freeX() {
+  // macOS: only on top of the Dock, inside its length
+  const a = MAC ? GX0 + 40 : 90, b = MAC ? gEnd() - 40 : W - 90;
+  if ((MAC && !HAS_G) || b <= a) return null;
   for (let k = 0; k < 30; k++) {
-    let x = rand(90, W - 90);
-    // macOS: keep snowmen in the outer fifths, clear of the centred Dock
-    if (EDGE_ONLY) x = Math.random() < .5 ? rand(90, W * .2) : rand(W * .8, W - 90);
+    const x = rand(a, b);
     if (stacks.every(s => Math.abs(s.x - x) > 110) && !(exc && Math.abs(exc.x - x) < 200)) return x;
   }
   return null;
@@ -670,11 +732,17 @@ function updPointer(dt) {
 function updStacks(dt) {
   if ((ballT -= dt) < 0) { // a little snowball forms by itself now and then
     ballT = rand(30, 70);
-    if (S.ground && stacks.filter(s => !isMan(s)).length < 2 && avgG() > GMAX * .09) { const x = freeX(); if (x != null) addStack(mkStack(x, [rand(7, 10)])); }
+    if (S.ground && HAS_G && stacks.filter(s => !isMan(s)).length < 2 && avgG() > GMAX * .09) { const x = freeX(); if (x != null) addStack(mkStack(x, [rand(7, 10)])); }
+  }
+  for (let j = stacks.length - 1; j >= 0; j--) { // off the Dock (or the Dock is gone): fell off the screen
+    const s = stacks[j];
+    if (s.y > H + 150) { stacks.splice(j, 1); if (dragStack === s) dragStack = null; }
   }
   for (const s of stacks) {
     if (s === dragStack) s.x = clamp(mx + dragOff, 20, W - 20);
-    const gy = groundTop(s.x);
+    let gy = groundTop(s.x);
+    if (MAC && (s.fall || gy === Infinity)) { s.fall = true; gy = Infinity; } // nothing underneath any more → it drops for good
+    if (s.fall && dragStack === s) dragStack = null;
     if (s.y < gy - 1) { s.vy += 1100 * dt; s.y = Math.min(gy, s.y + s.vy * dt); if (s.y >= gy) { if (s.vy > 250) for (let q = 0; q < 8; q++) powder(s.x, gy - 2, rand(-70, 70), -rand(30, 120), true); s.vy = 0; } }
     else s.y += (gy - s.y) * Math.min(1, dt * 3);
     s.pop = Math.min(1, s.pop + dt * 2.5);
@@ -690,7 +758,7 @@ function updStacks(dt) {
     held.x += dx; held.y += ((rolling ? gy - held.r * .85 : my) - held.y) * k; held.rot += dx / held.r;
     if (rolling && S.ground && Math.abs(dx) > .2) { // rolling picks up snow and leaves a groove
       let got = 0;
-      const i0 = Math.max(0, Math.floor((held.x - held.r * .7) / BIN)), i1 = Math.min(G.length - 1, Math.floor((held.x + held.r * .7) / BIN));
+      const i0 = Math.max(0, Math.floor((held.x - held.r * .7 - GX0) / BIN)), i1 = Math.min(G.length - 1, Math.floor((held.x + held.r * .7 - GX0) / BIN));
       for (let i = i0; i <= i1; i++) { const tk = Math.min(G[i], Math.abs(dx) * .15); G[i] -= tk; got += tk; }
       held.r = Math.min(46, Math.sqrt(held.r * held.r + got * BIN * .5));
     }
@@ -762,7 +830,7 @@ function frame(now) {
   if (S.snowman) updStacks(dt);
   updExc(dt); updSleigh(dt); updParts(dt); updSparks(dt); updGarland(dt);
   if (!capture && Math.hypot(mvx, mvy) > 25) {
-    if (S.ground) brushDrift(G, 0, GROUND, -1);
+    if (S.ground && HAS_G) brushDrift(G, GX0, GROUND, -1);
     for (const o of order) brushDrift(o.d, o.x, o.y, o.z);
   }
   draw();
@@ -777,7 +845,7 @@ function draw() {
   if (sleigh) drawSleigh();
   if (S.snowman) for (const s of stacks) drawStack(s);
   if (exc) drawExc();
-  drawDrift(G, 0, GROUND);
+  if (HAS_G) drawDrift(G, GX0, GROUND);
   if (exc) drawPile();
   if (held) drawBall(held.x, held.y, held.r, held.rot);
   drawSparks(); drawParts(); drawFlakes(); drawGlitter(); drawGarland();
